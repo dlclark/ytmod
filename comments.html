@@ -1,0 +1,69 @@
+<html>
+    <head>
+        <style type="text/css">
+            .tg  {border-collapse:collapse;border-spacing:0;border-color:#ccc;}
+            .tg td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#fff;}
+            .tg th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#f0f0f0;}
+            .tg tr{vertical-align:top}
+            .tg tr:nth-child(even){background-color:#f9f9f9;vertical-align:top}
+        </style>
+
+        <title>Latest Youtube Comments</title>
+    </head>
+    <body>
+        <h1>Most recent Youtube Comments<h1>
+        As of {{.RequestedTime}}
+
+        <table class="tg">
+            <tr>
+                <th>Author</th>
+                <th>Comment</th>
+                <th nowrap>Age</th>
+            </tr>
+            {{range .Comments}}
+            <tr>
+                <td>{{.AuthorName}}</td>
+                <td id={{.ID}}>{{.CommentHTML}}<br/>
+                    {{if .ParentID }}
+                        <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ParentID}}">View Parent on Youtube</a> | 
+                    {{end}}
+                    <a href="https://translate.google.com/#auto/en/{{.CommentText}}" target="translate">Translate</a> |
+                    <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ID}}">View on Youtube</a> | 
+                    <a href="#{{.ID}}" onclick="deleteComment('{{.ID}}'); return false;">Remove</a>
+                </td>
+                <td nowrap>{{.LastUpdateTime}}</td>
+            </tr>
+            {{end}}
+            
+        </table>
+
+        <script>
+            function deleteComment(id) {
+                var row = document.getElementById(id)
+                var oldbg = row.style.backgroundColor
+                row.style.backgroundColor = "#ff0000";
+
+                setTimeout(function() {
+                    if (!confirm("You sure you want to remove this comment?")) {
+                        row.style.backgroundColor = oldbg;
+                        return;
+                    }
+
+                    var request = new XMLHttpRequest();
+                    request.onload = function() {
+                        if (request.status == 200) {
+                            row.style.backgroundColor = "#dd0000"
+                            alert("Successfully removed comment");
+                        } else {
+                            alert("Error removing comment: " + request.responseText);
+                            row.style.backgroundColor = oldbg;
+                        }
+                    }
+
+                    request.open("POST", "http://localhost:8081/remove/"+id, true);
+                    request.send();
+                }, 0);
+            }
+        </script>
+    </body>
+</html>
