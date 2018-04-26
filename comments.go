@@ -22,8 +22,10 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 	log.Print("API list request complete")
 	//log.Printf("%# v", pretty.Formatter(resp))
 
+	stTime := time.Now()
+
 	data := CommentsPage{
-		RequestedTime: time.Now().UTC(),
+		RequestedTime: stTime.Truncate(time.Second).Format(time.RFC822),
 		NextPageToken: resp.NextPageToken,
 	}
 
@@ -44,7 +46,7 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		c.LastUpdateTime = data.RequestedTime.Sub(t).Truncate(time.Second).String()
+		c.LastUpdateTime = stTime.Sub(t).Truncate(time.Second).String()
 	}
 	//comment ID: Ugy8exLtYQ89HMMnFmd4AaABAg
 	//video ID: tlkfNhvsW6I
@@ -77,7 +79,7 @@ func removeComment(w http.ResponseWriter, r *http.Request) {
 }
 
 type CommentsPage struct {
-	RequestedTime time.Time
+	RequestedTime string
 	NextPageToken string
 	Comments      []*Comment
 }

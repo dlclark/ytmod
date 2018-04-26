@@ -11,7 +11,7 @@
         <title>Latest Youtube Comments</title>
     </head>
     <body>
-        <h1>Most recent Youtube Comments<h1>
+        <h1>{{len .Comments}} Most recent Youtube Comments<h1>
         As of {{.RequestedTime}}
 
         <table class="tg">
@@ -53,7 +53,6 @@
                     request.onload = function() {
                         if (request.status == 200) {
                             row.style.backgroundColor = "#dd0000"
-                            alert("Successfully removed comment");
                         } else {
                             alert("Error removing comment: " + request.responseText);
                             row.style.backgroundColor = oldbg;
