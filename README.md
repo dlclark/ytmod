@@ -1,3 +1,5 @@
 # ytmod - Youtube comment moderation assistant
 
-Only show comments since the last time you reviewed them.
+Shows the most recent comments on the requested youtube channel.  
+
+Allows for easy translation, removal, and context viewing.
