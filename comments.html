@@ -25,10 +25,10 @@
                 <td>{{.AuthorName}}</td>
                 <td id={{.ID}}>{{.CommentHTML}}<br/>
                     {{if .ParentID }}
-                        <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ParentID}}">View Parent on Youtube</a> | 
+                        <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ParentID}}" target="youtube">View Parent on Youtube</a> | 
                     {{end}}
                     <a href="https://translate.google.com/#auto/en/{{.CommentText}}" target="translate">Translate</a> |
-                    <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ID}}">View on Youtube</a> | 
+                    <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ID}}" target="youtube">View on Youtube</a> | 
                     <a href="#{{.ID}}" onclick="deleteComment('{{.ID}}'); return false;">Remove</a>
                 </td>
                 <td nowrap>{{.LastUpdateTime}}</td>
