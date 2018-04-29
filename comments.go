@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -13,51 +16,104 @@ import (
 var tmpl = template.Must(template.ParseFiles("comments.html"))
 
 func getLatestComments(w http.ResponseWriter, r *http.Request) {
-	resp, err := yt.CommentThreads.List("snippet,replies").AllThreadsRelatedToChannelId(*chanID).MaxResults(100).Context(r.Context()).Do()
-	if err != nil {
-		fmt.Fprintf(w, "Unable to retrieve data from youtube: %v", err)
-		return
-	}
 
-	log.Print("API list request complete")
-	//log.Printf("%# v", pretty.Formatter(resp))
+	lastSeen := getLastSeen(r)
 
+	// lets keep getting pages until we find our comment or slip past our oldest time
 	stTime := time.Now()
 
 	data := CommentsPage{
-		RequestedTime: stTime.Truncate(time.Second).Format(time.RFC822),
-		NextPageToken: resp.NextPageToken,
+		RequestedTime: stTime.Truncate(time.Second).String(),
 	}
 
-	for _, i := range resp.Items {
-		c := &Comment{
-			ID:             i.Id,
-			VideoID:        i.Snippet.VideoId,
-			AuthorName:     i.Snippet.TopLevelComment.Snippet.AuthorDisplayName,
-			CommentHTML:    template.HTML(i.Snippet.TopLevelComment.Snippet.TextDisplay),
-			CommentText:    i.Snippet.TopLevelComment.Snippet.TextOriginal,
-			LastUpdateTime: i.Snippet.TopLevelComment.Snippet.UpdatedAt,
-			ParentID:       i.Snippet.TopLevelComment.Snippet.ParentId,
-		}
-		data.Comments = append(data.Comments, c)
+	// if we don't have a "last time" then just get the first page
+	done := false
+	page := 1
 
-		t, err := time.Parse(time.RFC3339Nano, c.LastUpdateTime)
+	for !done {
+		resp, err := yt.CommentThreads.List("snippet,replies").
+			AllThreadsRelatedToChannelId(*chanID).
+			MaxResults(100).
+			Context(r.Context()).
+			PageToken(data.NextPageToken).
+			Do()
+
 		if err != nil {
-			continue
+			fmt.Fprintf(w, "Unable to retrieve data from youtube: %v", err)
+			return
 		}
 
-		c.LastUpdateTime = stTime.Sub(t).Truncate(time.Second).String()
+		log.Printf("API list page %v request complete", page)
+		//log.Printf("%# v", pretty.Formatter(resp))
+
+		data.NextPageToken = resp.NextPageToken
+
+		for _, i := range resp.Items {
+			c := &Comment{
+				ID:          i.Id,
+				VideoID:     i.Snippet.VideoId,
+				AuthorName:  i.Snippet.TopLevelComment.Snippet.AuthorDisplayName,
+				CommentHTML: template.HTML(i.Snippet.TopLevelComment.Snippet.TextDisplay),
+				CommentText: i.Snippet.TopLevelComment.Snippet.TextOriginal,
+				ParentID:    i.Snippet.TopLevelComment.Snippet.ParentId,
+			}
+			data.Comments = append(data.Comments, c)
+
+			t, err := time.Parse(time.RFC3339Nano, i.Snippet.TopLevelComment.Snippet.UpdatedAt)
+			if err != nil {
+				continue
+			}
+
+			c.LastUpdateTime = t
+			c.UpdatedSince = stTime.Sub(t).Truncate(time.Second).String()
+
+			// check the ID, but also the time in case the ID was removed
+			if lastSeen != nil {
+				if !done && (lastSeen.ID == i.Id || t.Before(lastSeen.LastUpdateTime)) {
+					c.MarkLineBefore = true
+					done = true
+				}
+			} else {
+				done = true
+			}
+		}
 	}
-	//comment ID: Ugy8exLtYQ89HMMnFmd4AaABAg
-	//video ID: tlkfNhvsW6I
 
-	//http://youtube.com/watch?v=k2U7MdhioYw&lc=UgwFX-MnbhTCqMqWwwd4AaABAg
-	//http://youtube.com/watch?v=k2U7MdhioYw&lc=UgxlYKTh-ruHKufc78F4AaABAg
+	if len(data.Comments) > 0 {
+		// save our last seen
+		saveLastSeen(data.Comments[0])
+	}
 
-	err = tmpl.Execute(w, data)
-	if err != nil {
+	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("Unable to execute template: %v", err)
 	}
+}
+
+func getLastSeen(r *http.Request) *LastSeen {
+	data, err := ioutil.ReadFile("lastseen")
+	if err != nil {
+
+		if err != os.ErrNotExist {
+			log.Printf("Cannot read last seen file: %v", err)
+		}
+		return nil
+	}
+
+	ls := &LastSeen{}
+	if err := json.Unmarshal(data, ls); err != nil {
+		log.Printf("Cannot unmarshal last seen file: %v", err)
+		return nil
+	}
+
+	return ls
+}
+
+func saveLastSeen(c *Comment) {
+	data, err := json.Marshal(&LastSeen{ID: c.ID, LastUpdateTime: c.LastUpdateTime})
+	if err != nil {
+		log.Printf("Error making json for last seen: %v", err)
+	}
+	ioutil.WriteFile("lastseen", data, os.ModePerm)
 }
 
 func removeComment(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +147,14 @@ type Comment struct {
 	AuthorName     string
 	CommentHTML    template.HTML
 	CommentText    string
-	LastUpdateTime string
+	LastUpdateTime time.Time
+	UpdatedSince   string
 	ParentID       string
+	MarkLineBefore bool
+}
+
+// LastSeen stores metadata about the last comment viewed in the app
+type LastSeen struct {
+	ID             string
+	LastUpdateTime time.Time
 }

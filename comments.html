@@ -6,6 +6,7 @@
             .tg th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#f0f0f0;}
             .tg tr{vertical-align:top}
             .tg tr:nth-child(even){background-color:#f9f9f9;vertical-align:top}
+            .line td {border-top-color:#000;border-top-width:5px}
         </style>
 
         <title>Latest Youtube Comments</title>
@@ -21,7 +22,7 @@
                 <th nowrap>Age</th>
             </tr>
             {{range .Comments}}
-            <tr>
+            <tr {{if .MarkLineBefore}} class="line" {{end}}>
                 <td>{{.AuthorName}}</td>
                 <td id={{.ID}}>{{.CommentHTML}}<br/>
                     {{if .ParentID }}
@@ -31,7 +32,7 @@
                     <a href="http://youtube.com/watch?v={{.VideoID}}&lc={{.ID}}" target="youtube">View on Youtube</a> | 
                     <a href="#{{.ID}}" onclick="deleteComment('{{.ID}}'); return false;">Remove</a>
                 </td>
-                <td nowrap>{{.LastUpdateTime}}</td>
+                <td nowrap>{{.UpdatedSince}}</td>
             </tr>
             {{end}}
             
