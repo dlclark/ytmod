@@ -13,6 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const MAX_PAGES = 5
+
 var tmpl = template.Must(template.ParseFiles("comments.html"))
 
 func getLatestComments(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +28,8 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 		RequestedTime: stTime.Truncate(time.Second).String(),
 	}
 
-	// if we don't have a "last time" then just get the first page
-	done := false
-	page := 1
-
-	for !done {
+	// keep getting pages until we're done
+	for done, page := false, 1; !done; page++ {
 		resp, err := yt.CommentThreads.List("snippet,replies").
 			AllThreadsRelatedToChannelId(*chanID).
 			MaxResults(100).
@@ -67,8 +66,12 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 			c.LastUpdateTime = t
 			c.UpdatedSince = stTime.Sub(t).Truncate(time.Second).String()
 
-			// check the ID, but also the time in case the ID was removed
-			if lastSeen != nil {
+			if page > MAX_PAGES {
+				// only get 5 pages max...that's 500 comments, maybe check the app more often
+				log.Printf("Hit limit of %v pages, maybe check the app more often.", MAX_PAGES)
+				done = true
+			} else if lastSeen != nil {
+				// check the ID, but also the time in case the ID was removed
 				if !done && (lastSeen.ID == i.Id || t.Before(lastSeen.LastUpdateTime)) {
 					c.MarkLineBefore = true
 					done = true
