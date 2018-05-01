@@ -10,6 +10,8 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/api/youtube/v3"
+
 	"github.com/gorilla/mux"
 )
 
@@ -48,37 +50,40 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 		data.NextPageToken = resp.NextPageToken
 
 		for _, i := range resp.Items {
-			c := &Comment{
-				ID:          i.Id,
-				VideoID:     i.Snippet.VideoId,
-				AuthorName:  i.Snippet.TopLevelComment.Snippet.AuthorDisplayName,
-				CommentHTML: template.HTML(i.Snippet.TopLevelComment.Snippet.TextDisplay),
-				CommentText: i.Snippet.TopLevelComment.Snippet.TextOriginal,
-				ParentID:    i.Snippet.TopLevelComment.Snippet.ParentId,
-			}
+			c := newComment(i.Id, stTime, i.Snippet.TopLevelComment.Snippet)
 			data.Comments = append(data.Comments, c)
 
-			t, err := time.Parse(time.RFC3339Nano, i.Snippet.TopLevelComment.Snippet.UpdatedAt)
-			if err != nil {
-				continue
-			}
-
-			c.LastUpdateTime = t
-			c.UpdatedSince = stTime.Sub(t).Truncate(time.Second).String()
-
-			if page > MAX_PAGES {
-				// only get 5 pages max...that's 500 comments, maybe check the app more often
-				log.Printf("Hit limit of %v pages, maybe check the app more often.", MAX_PAGES)
-				done = true
-			} else if lastSeen != nil {
+			if !done && lastSeen != nil {
 				// check the ID, but also the time in case the ID was removed
-				if !done && (lastSeen.ID == i.Id || t.Before(lastSeen.LastUpdateTime)) {
+				if lastSeen.ID == c.ID || c.LastUpdateTime.Before(lastSeen.LastUpdateTime) {
 					c.MarkLineBefore = true
 					done = true
 				}
-			} else {
-				done = true
 			}
+
+			// now add the replies of the comment
+			if i.Replies != nil {
+				for _, ir := range i.Replies.Comments {
+					rc := newComment(ir.Id, stTime, ir.Snippet)
+					data.Comments = append(data.Comments, rc)
+
+					if !done && lastSeen != nil {
+						// check the ID, only check IDs for replies
+						if lastSeen.ID == rc.ID {
+							rc.MarkLineBefore = true
+							done = true
+						}
+					}
+				}
+			}
+		}
+
+		if page > MAX_PAGES {
+			// only get 5 pages max...that's 500 comments, maybe check the app more often
+			log.Printf("Hit limit of %v pages, maybe check the app more often.", MAX_PAGES)
+			done = true
+		} else if lastSeen == nil {
+			done = true
 		}
 	}
 
@@ -90,6 +95,27 @@ func getLatestComments(w http.ResponseWriter, r *http.Request) {
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("Unable to execute template: %v", err)
 	}
+}
+
+func newComment(id string, stTime time.Time, s *youtube.CommentSnippet) *Comment {
+	c := &Comment{
+		ID:          id,
+		VideoID:     s.VideoId,
+		AuthorName:  s.AuthorDisplayName,
+		CommentHTML: template.HTML(s.TextDisplay),
+		CommentText: s.TextOriginal,
+		ParentID:    s.ParentId,
+	}
+
+	t, err := time.Parse(time.RFC3339Nano, s.UpdatedAt)
+	if err != nil {
+		return c
+	}
+
+	c.LastUpdateTime = t
+	c.UpdatedSince = stTime.Sub(t).Truncate(time.Second).String()
+
+	return c
 }
 
 func getLastSeen(r *http.Request) *LastSeen {

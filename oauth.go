@@ -72,7 +72,7 @@ func getClient(scope string) *http.Client {
 	}
 	tok, err := tokenFromFile(cacheFile)
 	if err != nil {
-		authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+		authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 		fmt.Println("Trying to get token from web")
 		tok, err = getTokenFromWeb(config, authURL)
 
